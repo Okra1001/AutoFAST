@@ -1,0 +1,19 @@
+{
+  "study_id": "replace-me",
+  "baseline": {
+    "entry": "path/to/model.fst",
+    "source_url": "",
+    "source_revision": ""
+  },
+  "varied_parameters": [],
+  "controlled_parameters": [],
+  "statistics": {
+    "start_time_s": null,
+    "end_time_s": null
+  },
+  "acceptance": {
+    "require_normal_termination": true,
+    "require_expected_duration": true,
+    "require_finite_channels": true
+  }
+}
