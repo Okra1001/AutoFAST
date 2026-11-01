@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from run_case import run_case
+from openfast_common import dependency_graph, sha256, atomic_write
 
 
 FIELDS = [
@@ -32,10 +33,28 @@ def load_previous(path: Path) -> dict[str, dict[str, str]]:
 
 def write_status(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8-sig") as stream:
-        writer = csv.DictWriter(stream, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
+    import io
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=FIELDS)
+    writer.writeheader()
+    writer.writerows(rows)
+    atomic_write(path, stream.getvalue(), "utf-8-sig")
+
+
+def prior_matches(prior: dict, entry: Path, executable: Path) -> bool:
+    """Only reuse records when the discovered input graph and hashes match."""
+    try:
+        provenance = Path(prior["status_file"]).parent / "provenance"
+        old_graph = json.loads((provenance / "inspection.json").read_text(encoding="utf-8"))
+        graph = dependency_graph(entry)
+        if graph["truncated"] or old_graph["truncated"] or graph != old_graph:
+            return False
+        with (provenance / "file_hashes.csv").open(encoding="utf-8-sig", newline="") as f:
+            old = {row["path"]: row["sha256"] for row in csv.DictReader(f)}
+        paths = set(graph["files"]) | {str(executable.resolve())}
+        return set(old) == paths and all(Path(p).is_file() and sha256(Path(p)) == old[p] for p in paths)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return False
 
 
 def main() -> None:
@@ -54,18 +73,21 @@ def main() -> None:
     required = {"case_id", "entry"}
     if not cases or not required.issubset(cases[0]):
         raise ValueError("Manifest requires case_id and entry columns")
+    ids = [case["case_id"].strip() for case in cases]
+    if any(not x or x in {".", ".."} or Path(x).name != x or "/" in x or "\\" in x for x in ids) or len(set(ids)) != len(ids):
+        raise ValueError("case_id values must be unique, nonempty directory names")
     rows: list[dict] = []
     for case in cases:
         case_id = case["case_id"].strip()
-        prior = previous.get(case_id)
-        if prior and prior.get("passed", "").lower() == "true":
-            rows.append(prior)
-            print(f"{case_id}: skipped (previously passed)")
-            continue
         executable_text = case.get("executable", "").strip()
         executable = Path(executable_text) if executable_text else args.default_executable
         if executable is None:
             raise ValueError(f"{case_id}: no executable specified")
+        prior = previous.get(case_id)
+        if prior and prior.get("passed", "").lower() == "true" and prior_matches(prior, Path(case["entry"]), executable):
+            rows.append(prior)
+            print(f"{case_id}: skipped (matching previously passed run)")
+            continue
         case_result = args.result_dir / case_id
         status = run_case(
             executable,
@@ -84,7 +106,8 @@ def main() -> None:
             "notes": case.get("notes", ""),
         }
         rows.append(row)
-        write_status(status_path, rows)
+        retained = rows + [previous[x] for x in ids[len(rows):] if x in previous]
+        write_status(status_path, retained)
         print(f"{case_id}: {'passed' if status['passed'] else 'FAILED'}")
         if not status["passed"] and not args.continue_on_error:
             raise SystemExit(1)

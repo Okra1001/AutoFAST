@@ -225,7 +225,7 @@ def dependency_graph(entry: Path, max_files: int = 2000) -> dict:
             if (
                 reference.exists
                 and target.is_file()
-                and target.suffix.lower() in INPUT_SUFFIXES
+                and target.suffix.lower() in (INPUT_SUFFIXES | RESOURCE_SUFFIXES)
                 and target not in visited
             ):
                 queue.append(target)

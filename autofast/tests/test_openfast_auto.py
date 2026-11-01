@@ -20,6 +20,8 @@ from inspect_project import inspect
 from modify_input import replace_exact_field
 from openfast_common import dependency_graph
 from run_case import run_case
+from run_sweep import prior_matches
+from create_provenance import create
 
 
 class OpenFASTAutoTests(unittest.TestCase):
@@ -142,6 +144,20 @@ class OpenFASTAutoTests(unittest.TestCase):
                 (result / "status.json").read_text(encoding="utf-8")
             )
             self.assertEqual(saved["return_code"], 0)
+
+    def test_resume_rejects_changed_binary_dependency(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entry = root / "case.fst"
+            library = root / "control.dll"
+            entry.write_text('"control.dll" DLL_FileName - controller\n', encoding="utf-8")
+            library.write_bytes(b"first")
+            record = root / "record"
+            create(entry, Path(sys.executable), record / "provenance")
+            prior = {"status_file": str(record / "status.json")}
+            self.assertTrue(prior_matches(prior, entry, Path(sys.executable)))
+            library.write_bytes(b"changed")
+            self.assertFalse(prior_matches(prior, entry, Path(sys.executable)))
 
     def test_cli_dry_run_does_not_write(self):
         with tempfile.TemporaryDirectory() as folder:

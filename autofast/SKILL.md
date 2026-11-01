@@ -1,13 +1,13 @@
 ---
 name: autofast
-description: Universal OpenFAST assistant for beginners and researchers. Use to bootstrap from only a release executable, inspect model dependency graphs, explain modules, safely edit input fields, run and resume cases or parameter sweeps, diagnose OpenFAST and driver errors, validate .out/.outb results, compare controlled cases, and create reproducible provenance bundles. Trigger for OpenFAST, AeroDyn, BeamDyn, ElastoDyn, ServoDyn, InflowWind, HydroDyn, SeaState, SubDyn, MoorDyn, FAST.Farm, or OpenFAST driver workflows.
+description: Assist with OpenFAST and module-driver simulations; inspect and modify model inputs, run or resume cases, diagnose failures, assess outputs and convergence, and record provenance. Use for OpenFAST, AeroDyn/OLAF, floating wind and related module workflows.
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   maturity: "stable"
 ---
 
-# AutoFAST v1.0
+# AutoFAST v1.1
 
 Help users move from an OpenFAST executable or model directory to traceable,
 validated simulation results. Work with any turbine or support structure.
@@ -36,6 +36,7 @@ Read only the reference needed for the active workflow:
 - [Provenance](references/provenance.md)
 - [Platform notes](references/platform-notes.md)
 - [FOWT case-study lessons](references/fowt-case-study.md)
+- [Floating wind and OLAF study design](references/floating-olaf.md) — read when applicable.
 
 ## Non-negotiable rules
 
@@ -51,7 +52,7 @@ Read only the reference needed for the active workflow:
 10. Test one representative case before a large sweep.
 11. Record case state incrementally so interrupted sweeps can resume.
 12. Diagnose from logs and the active dependency graph; use minimal repairs.
-13. Require normal termination, complete outputs, expected duration, and finite data.
+13. Distinguish execution screening from validation: check termination, expected duration, finite outputs, warnings and relevant physical and numerical criteria.
 14. Apply consistent channels, units, and statistics windows when comparing cases.
 15. Package inputs, hashes, commands, environment, logs, outputs, and analysis.
 
@@ -128,7 +129,7 @@ Run:
 python scripts/run_sweep.py cases.csv --default-executable PATH --result-dir sweep-record
 ```
 
-The runner writes status after every case and skips cases already marked passed.
+The runner writes status after every case and skips a passed case only if its discovered dependency graph and recorded file hashes still match. The graph is heuristic and may miss dependencies: independently audit active input files, controller libraries, external data and runtime environment. Do not run multiple instances on the same case or output directory. Prior pass means execution screening, not physical validation.
 Keep a separate manifest describing varied and controlled parameters.
 
 ## Diagnose
